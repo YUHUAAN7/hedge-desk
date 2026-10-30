@@ -1,0 +1,25 @@
+{
+ "name": "안유화 1인 글로벌 헤지펀드 데스크",
+ "short_name": "헤지펀드 데스크",
+ "start_url": "./index.html",
+ "scope": "./",
+ "display": "standalone",
+ "background_color": "#F3EFE6",
+ "theme_color": "#14213D",
+ "lang": "ko",
+ "description": "매주 토요일 30분. 종목 노트·룰북·거래 일지·복기·시계열. 기록은 이 기기에만 남습니다.",
+ "icons": [
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png",
+   "purpose": "any"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  }
+ ]
+}
