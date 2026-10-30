@@ -389,8 +389,9 @@ function saveFile(name,data,mime){
 function allText(){var parts=['# 헤지펀드 데스크 기록 '+today()];SHEETS.forEach(function(s){var t=tableOf(s[0]);if(!t.rows.length)return;parts.push('## '+s[1]+'\n'+csvText(t.cols,t.rows).replace('﻿',''))});return parts.join('\n\n')}
 function showText(){
   var host=$('#dlbox');if(!host)return;var txt=allText();
-  host.innerHTML='<p class="muted">아래 글 전체를 복사해 카톡이나 메일로 교수님께 보내면 됩니다. 교수님 화면에서 그대로 붙여 넣어 가져옵니다.</p><textarea id="dlta" readonly style="width:100%;height:180px;font-size:12px;font-family:monospace"></textarea><div class="row" style="margin-top:6px"><button class="go" type="button" id="dlcopy">모두 복사</button><span class="muted" id="dlcopymsg">'+txt.length.toLocaleString()+'자</span></div>';
+  host.innerHTML='<p class="muted">아래 글 전체를 복사해 카톡이나 메일로 교수님께 보내면 됩니다. 교수님 화면에서 그대로 붙여 넣어 가져옵니다.</p><textarea id="dlta" readonly style="width:100%;height:180px;font-size:12px;font-family:monospace"></textarea><div class="row" style="margin-top:6px"><button class="go" type="button" id="dlcopy">모두 복사</button><button class="sm" type="button" id="dltxt">텍스트 파일(.txt)로 보내기</button><span class="muted" id="dlcopymsg">'+txt.length.toLocaleString()+'자</span></div>';
   $('#dlta').value=txt;
+  $('#dltxt').onclick=function(){saveFile('hedge-desk_records_'+today()+'.txt',txt,'text/plain')};
   $('#dlcopy').onclick=function(){var ta=$('#dlta');ta.focus();ta.select();ta.setSelectionRange(0,ta.value.length);var say=function(ok){$('#dlcopymsg').textContent=ok?'복사됐습니다. 카톡·메일에 붙여 넣으세요.':'자동 복사가 안 됩니다. 글을 길게 눌러 "모두 선택 → 복사"를 하세요.'};
     if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(ta.value).then(function(){say(true)},function(){say(document.execCommand&&document.execCommand('copy'))})}else{say(document.execCommand&&document.execCommand('copy'))}};
 }
@@ -424,9 +425,10 @@ function xlsx(sheets){
 function downloadAll(){
   var ev=events(),sheets=[{name:'시계열',cols:['날짜','종류','내용','주의'],rows:ev.map(function(e){return [e.d,e.k,e.t,e.bad?'주의':'']})}];
   SHEETS.forEach(function(s){var t=tableOf(s[0]);sheets.push({name:s[1],cols:t.cols,rows:t.rows})});
-  saveFile('헤지펀드데스크_기록_'+today()+'.xlsx',xlsx(sheets));
+  saveFile('hedge-desk_records_'+today()+'.xlsx',xlsx(sheets));
 }
-function downloadCsv(){var ev=events();saveFile('헤지펀드데스크_시계열_'+today()+'.csv',csvText(['날짜','종류','내용','주의'],ev.map(function(e){return [e.d,e.k,e.t,e.bad?'주의':'']})),'text/csv;charset=utf-8')}
+/* 파일 이름은 영문으로, 형식은 군더더기 없이: 카톡 같은 앱은 한글 이름이나 'text/csv;charset=…' 같은 형식을 "지원하지 않는 형식"으로 거절한다 */
+function downloadCsv(){var ev=events();saveFile('hedge-desk_timeline_'+today()+'.csv',csvText(['날짜','종류','내용','주의'],ev.map(function(e){return [e.d,e.k,e.t,e.bad?'주의':'']})),'text/csv')}
 function renderTimeline(){
   var ev=events(),kinds=['all','노트','거래','위반','복기','선언','비중','룰북','루틴'];
   var shown=ev.filter(function(e){return TL_FILTER==='all'||e.k===TL_FILTER});
@@ -489,7 +491,7 @@ function drawMembers(){
   var st=function(t){$('#imstat').textContent=t},after=function(label){return function(r){st('완료: '+label+' · '+r.total+'건('+r.cols.join(', ')+'). 표를 다시 읽습니다.');setTimeout(renderMembers,800)}},fail=function(e){st('실패: '+((e&&e.message)||e))};
   $('#imgo').onclick=function(){var label=$('#imlabel').value.trim(),f=$('#imfile').files[0];if(!label){st('회원 별명을 먼저 적어 주세요.');return}if(!f){st('엑셀 파일을 골라 주세요.');return}importMember(label,f,st).then(after(label)).catch(fail)};
   $('#imtextgo').onclick=function(){var label=$('#imlabel').value.trim(),t=$('#imtext').value;if(!label){st('회원 별명을 먼저 적어 주세요.');return}if(!/##\s*(노트|거래|복기|위반|선언|비중|룰북|루틴)/.test(t)){st('붙여 넣은 글에 "## 노트" 같은 표 제목이 없습니다. 회원이 보낸 글 전체를 붙여 넣어 주세요.');return}importMember(label,null,st,t).then(after(label)).catch(fail)};
-  $('#mdl').onclick=function(){var cols=['회원','노트 누적','4주 체크','준수율','위반 건수','감정 거래','노트 없는 매수','올해 거래','복기 이달','복기 누적','통과 5줄','마지막 저장','동의일'];var rows=L.map(function(l){return [name(l),l.notes,l.weeks4,l.comply==null?'':l.comply,l.vio,l.emo,l.noteless,l.trades,l.revM,l.reviews,l.pass,l.updated,l.consent]});saveFile('헤지펀드데스크_회원점검표_'+today()+'.xlsx',xlsx([{name:'점검표',cols:cols,rows:rows}]))};
+  $('#mdl').onclick=function(){var cols=['회원','노트 누적','4주 체크','준수율','위반 건수','감정 거래','노트 없는 매수','올해 거래','복기 이달','복기 누적','통과 5줄','마지막 저장','동의일'];var rows=L.map(function(l){return [name(l),l.notes,l.weeks4,l.comply==null?'':l.comply,l.vio,l.emo,l.noteless,l.trades,l.revM,l.reviews,l.pass,l.updated,l.consent]});saveFile('hedge-desk_members_'+today()+'.xlsx',xlsx([{name:'점검표',cols:cols,rows:rows}]))};
 }
 /* ---------- 엑셀 가져오기(계정 없는 회원) · zip + 시트 읽기 ---------- */
 function unzip(buf){
