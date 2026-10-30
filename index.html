@@ -65,7 +65,7 @@ footer{padding:20px 16px;color:var(--muted);font-size:12px;border-top:1px solid 
 </style>
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#14213D"><link rel="apple-touch-icon" href="icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="헤지펀드 데스크"><style>#install{margin:12px auto 0;max-width:1100px;padding:0 16px}#install>div{background:#14213D;color:#F1ECE1;border:1px solid rgba(212,166,74,.6);border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.5}#install button{background:#D4A64A;color:#14213D;border:0;border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;margin-left:8px}#install .x{background:transparent;color:#C3CFDF;border:1px solid rgba(241,236,225,.3)}</style></head>
 <body>
-<header><div class="wrap"><h1>안유화 1인 글로벌 헤지펀드 데스크 <span class="pill" id="mode">저장소 연결 중</span></h1><div class="sub" id="asof"></div><div class="sub"><a href="https://claude.ai/artifact/GnoM178vxfokTLQbz3RRcf" style="color:#D4A64A">사용설명서(따라 하기 가이드북) 열기</a></div><div id="consent"></div></div></header>
+<header><div class="wrap"><h1>안유화 1인 글로벌 헤지펀드 데스크 <span class="pill" id="mode">저장소 연결 중</span></h1><div class="sub" id="asof"></div><div class="sub"><a href="https://claude.ai/artifact/GnoM178vxfokTLQbz3RRcf" style="color:#D4A64A">사용설명서(따라 하기 가이드북) 열기</a></div><div id="consent"></div></div></header><div id="install"></div>
 <nav><div class="wrap" id="tabs"></div></nav>
 <main class="wrap">
 <section class="desk on" id="d0"></section>
@@ -532,7 +532,6 @@ try{var t=Number(localStorage.getItem('hfdesk:tab'));if(t>=0&&t<8)show(t)}catch(
 window.__hf={parseXlsx:parseXlsx,recordsFrom:recordsFrom,memberId:memberId};
 })();
 </script>
-<div id="install"></div>
 <script>
 (function(){
   if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
