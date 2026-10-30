@@ -366,22 +366,33 @@ function tableOf(col){var rows=Store.list(col).sort(function(a,b){return ((a.dat
 function csvText(cols,rows){var q=function(v){v=String(v);return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};return '﻿'+[cols].concat(rows).map(function(r){return r.map(q).join(',')}).join('\r\n')}
 function saveFile(name,data,mime){
   var done=function(ok,msg){var el=$('#dlmsg');if(el)el.textContent=msg||(ok?'내려받았습니다: '+name:'내려받기가 취소됐습니다.')};
-  var p=(window.claude&&window.claude.use)?window.claude.use('downloads'):Promise.resolve(null);
-  p.then(function(dl){
-    if(dl){return dl.save({filename:name,data:data}).then(function(){done(true)}).catch(function(e){done(false,e&&e.code==='declined'?'내려받기를 취소했습니다.':'내려받기 실패: '+((e&&e.message)||e))})}
-    var blob=data instanceof Blob?data:new Blob([data],{type:mime});
-    /* 휴대폰(특히 홈 화면에 설치한 아이폰)은 파일 내려받기가 막히는 경우가 있어 '공유' 창으로 보낸다: 메일·카톡·파일 앱에 저장할 수 있다 */
-    var mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent),file=null;
+  if(window.claude&&window.claude.use){
+    window.claude.use('downloads').then(function(dl){if(!dl)return fallback();return dl.save({filename:name,data:data}).then(function(){done(true)}).catch(function(e){done(false,e&&e.code==='declined'?'내려받기를 취소했습니다.':'내려받기 실패: '+((e&&e.message)||e))})});
+    return;
+  }
+  fallback();
+  /* 클로드 밖(설치형·사본): 휴대폰은 파일 내려받기가 막히는 경우가 많아 터치 직후에 바로 '공유' 창을 연다. 그래도 안 되면 '텍스트로 보기'가 항상 된다. */
+  function fallback(){
+    var blob=data instanceof Blob?data:new Blob([data],{type:mime}),mobile=/iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1),file=null;
     try{file=new File([blob],name,{type:mime||blob.type})}catch(e){}
-    if(mobile&&file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:name}).then(function(){done(true,'공유 창을 열었습니다. 메일·카톡으로 보내거나 "파일에 저장"을 고르세요: '+name)}).catch(function(e){if(e&&e.name==='AbortError'){done(false,'공유를 취소했습니다.')}else{openTab()}});
-      return;
+    if(mobile&&file&&navigator.share){
+      var ok=true;try{ok=!navigator.canShare||navigator.canShare({files:[file]})}catch(e){ok=false}
+      if(ok){navigator.share({files:[file],title:name}).then(function(){done(true,'공유 창을 열었습니다. 카톡·메일로 보내거나 "파일에 저장"을 고르세요: '+name);addTextBtn()}).catch(function(e){done(false,(e&&e.name==='AbortError')?'공유를 취소했습니다. 안 되면 아래 "텍스트로 보기"를 쓰세요.':'공유가 막혔습니다. 아래 "텍스트로 보기"로 복사해서 보내세요.');addTextBtn()});return}
     }
     var u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a)},2000);
-    done(true,'내려받았습니다: '+name+(mobile?' · 열리지 않으면 아래 "새 창에서 열기"를 누르세요.':''));
-    if(mobile){var el=$('#dlmsg');if(el){var b=document.createElement('button');b.className='sm';b.textContent='새 창에서 열기';b.onclick=function(){window.open(u,'_blank')};el.appendChild(document.createTextNode(' '));el.appendChild(b)}}
-    function openTab(){var u2=URL.createObjectURL(blob);var w=window.open(u2,'_blank');done(!!w,w?'새 창에서 열었습니다. 공유 버튼으로 저장하세요.':'팝업이 막혔습니다. 브라우저 설정에서 팝업을 허용해 주세요.')}
-  });
+    done(true,'내려받았습니다: '+name+(mobile?' · 파일이 안 보이면 아래 "텍스트로 보기"로 복사해서 보내세요.':''));
+    if(mobile)addTextBtn();
+  }
+  function addTextBtn(){var el=$('#dlmsg');if(!el||$('#dltext'))return;var b=document.createElement('button');b.className='sm';b.id='dltext';b.textContent='텍스트로 보기(복사해서 보내기)';b.onclick=showText;el.appendChild(document.createTextNode(' '));el.appendChild(b)}
+}
+/* 어떤 휴대폰에서도 되는 길: 기록 전체를 글자로 보여 주고 복사하게 한다. 교수는 8번 탭에 붙여 넣어 가져온다. */
+function allText(){var parts=['# 헤지펀드 데스크 기록 '+today()];SHEETS.forEach(function(s){var t=tableOf(s[0]);if(!t.rows.length)return;parts.push('## '+s[1]+'\n'+csvText(t.cols,t.rows).replace('﻿',''))});return parts.join('\n\n')}
+function showText(){
+  var host=$('#dlbox');if(!host)return;var txt=allText();
+  host.innerHTML='<p class="muted">아래 글 전체를 복사해 카톡이나 메일로 교수님께 보내면 됩니다. 교수님 화면에서 그대로 붙여 넣어 가져옵니다.</p><textarea id="dlta" readonly style="width:100%;height:180px;font-size:12px;font-family:monospace"></textarea><div class="row" style="margin-top:6px"><button class="go" type="button" id="dlcopy">모두 복사</button><span class="muted" id="dlcopymsg">'+txt.length.toLocaleString()+'자</span></div>';
+  $('#dlta').value=txt;
+  $('#dlcopy').onclick=function(){var ta=$('#dlta');ta.focus();ta.select();ta.setSelectionRange(0,ta.value.length);var say=function(ok){$('#dlcopymsg').textContent=ok?'복사됐습니다. 카톡·메일에 붙여 넣으세요.':'자동 복사가 안 됩니다. 글을 길게 눌러 "모두 선택 → 복사"를 하세요.'};
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(ta.value).then(function(){say(true)},function(){say(document.execCommand&&document.execCommand('copy'))})}else{say(document.execCommand&&document.execCommand('copy'))}};
 }
 /* 최소 xlsx 작성기: 압축 없는 zip + inlineStr 시트 */
 var CRC_T=(function(){var t=[],c;for(var n=0;n<256;n++){c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
@@ -427,7 +438,7 @@ function renderTimeline(){
   +'<div class="grid" style="margin-top:12px"><div class="card"><h3>기록 수</h3><div class="kpi">'+ev.length+'건<small>노트 '+ev.filter(function(e){return e.k==='노트'}).length+' · 거래 '+ev.filter(function(e){return e.k==='거래'}).length+' · 위반 '+ev.filter(function(e){return e.k==='위반'}).length+' · 복기 '+ev.filter(function(e){return e.k==='복기'}).length+'</small></div></div>'
   +'<div class="card"><h3>토요일 루틴 · 최근 12주</h3><div class="row" style="align-items:end;height:60px">'+(weeks.length?weeks.map(function(w){var n=Object.keys(w).filter(function(k){return w[k]===true}).length;return '<div title="'+esc(w.id)+' '+n+'/6" style="width:18px;height:'+(8+n*8)+'px;background:'+(n>=5?'var(--green)':n>=3?'var(--gold)':'var(--red)')+';border-radius:3px"></div>'}).join(''):'<span class="muted">아직 없음</span>')+'</div><p class="muted">막대 하나가 한 주 · 높을수록 체크가 많음</p></div>'
   +'<div class="card'+(due.length?' accent':'')+'"><h3>1년 뒤 대조할 노트</h3><div class="kpi">'+due.length+'장<small>'+(due.length?due.map(function(n){return n.name}).join(', ')+' · 1 리서치에서 결과 적기':'봉인 뒤 1년이 지난 노트가 생기면 여기에 뜹니다')+'</small></div></div></div>'
-  +'<div class="card" style="margin-top:12px"><h3>내 기록 내려받기</h3><div class="row"><button class="go" type="button" id="dlx">엑셀 파일(.xlsx)로 내려받기</button><button class="sm" type="button" id="dlc">시계열 표만 CSV로</button><span class="muted" id="dlmsg">엑셀 파일은 시트 9개(시계열·노트·거래·복기·위반·선언·비중·룰북·루틴)로, 적은 모든 칸이 그대로 들어갑니다. 내 컴퓨터에만 저장되고 아무에게도 보내지지 않습니다.</span></div></div>'
+  +'<div class="card" style="margin-top:12px"><h3>내 기록 내려받기</h3><div class="row"><button class="go" type="button" id="dlx">엑셀 파일(.xlsx)로 내려받기</button><button class="sm" type="button" id="dlc">시계열 표만 CSV로</button><span class="muted" id="dlmsg">엑셀 파일은 시트 9개(시계열·노트·거래·복기·위반·선언·비중·룰북·루틴)로, 적은 모든 칸이 그대로 들어갑니다. 내 컴퓨터에만 저장되고 아무에게도 보내지지 않습니다.</span></div><div id="dlbox"></div></div>'
   +'<div class="row" style="margin:14px 0 6px">'+kinds.map(function(k){return '<button class="sm" data-tl="'+k+'" style="'+(TL_FILTER===k?'background:var(--navy);color:var(--navyink)':'')+'">'+(k==='all'?'전체':k)+'</button>'}).join('')+'</div>'
   +(shown.length?Object.keys(byM).sort().reverse().map(function(m){return '<h3 style="margin-top:12px">'+m+'</h3><table><tr><th style="width:110px">날짜</th><th style="width:60px">종류</th><th>내용</th></tr>'+byM[m].map(function(e){return '<tr><td>'+esc(e.d)+'</td><td>'+(e.bad?'<span class="tag bad">'+esc(e.k)+'</span>':'<span class="tag info">'+esc(e.k)+'</span>')+'</td><td>'+esc(e.t)+'</td></tr>'}).join('')+'</table>'}).join(''):'<p class="muted">아직 기록이 없습니다. 선언서 한 장이 첫 기록입니다.</p>');
   $('#d7').querySelectorAll('[data-tl]').forEach(function(b){b.onclick=function(){TL_FILTER=b.getAttribute('data-tl');renderTimeline()}});
@@ -473,10 +484,11 @@ function drawMembers(){
   +L.map(function(l){var c=function(ok,txt){return '<td>'+(ok?'<span class="tag ok">':'<span class="tag warn">')+esc(txt)+'</span></td>'};
     return '<tr><td>'+esc(name(l))+(l.consent?'<br><span class="muted">동의 '+esc(l.consent)+'</span>':'')+'</td>'+c(l.notes>=1,l.notes+'장')+c(l.weeks4>=3,l.weeks4+'/4주')+c(l.vio>0||l.comply===100,(l.comply==null?'선언 전':l.comply+'%')+' · '+l.vio+'건')+c(l.emo+l.noteless===0,l.emo+' · '+l.noteless+' (거래 '+l.trades+')')+c(l.revM>=1,l.revM+'장 / 누적 '+l.reviews)+'<td><b>'+l.pass+'/5</b></td><td>'+esc(l.updated||'–')+'</td></tr>'}).join('')+'</table>'
   +'<p class="muted" style="margin-top:8px">기준(제안): ① 월 1장 이상 ② 4주 중 3주(체크 3개 이상) ③ 위반을 적었으면 통과, 위반 0인데 준수율 100%면 확인 ④ 감정·노트 없는 매수 0 ⑤ 이달 복기 1장. 수집 범위와 기준은 확정 전.</p>'
-  +'<div class="card" style="margin-top:12px"><h3>엑셀 가져오기 · 계정 없는 회원</h3><p class="muted">회원이 데스크 사본의 화면 7에서 내려받은 엑셀 파일(시트 9개)을 넣으면 그 회원의 가지에 기록이 들어가 위 표에 한 줄로 보입니다. 같은 회원은 매달 같은 별명으로 넣어야 한 줄로 쌓이고, 같은 기록은 덮어씁니다. 종이로 수집 동의를 받은 회원만 넣습니다.</p><div class="row"><input id="imlabel" placeholder="회원 별명(예: 회원A)" style="flex:1;min-width:160px"><input type="file" id="imfile" accept=".xlsx"><button class="sm" id="imgo">가져오기</button></div><p class="muted" id="imstat"></p></div>';
+  +'<div class="card" style="margin-top:12px"><h3>엑셀 가져오기 · 계정 없는 회원</h3><p class="muted">회원이 데스크 사본의 화면 7에서 내려받은 엑셀 파일(시트 9개)을 넣으면 그 회원의 가지에 기록이 들어가 위 표에 한 줄로 보입니다. 같은 회원은 매달 같은 별명으로 넣어야 한 줄로 쌓이고, 같은 기록은 덮어씁니다. 종이로 수집 동의를 받은 회원만 넣습니다.</p><div class="row"><input id="imlabel" placeholder="회원 별명(예: 회원A)" style="flex:1;min-width:160px"><input type="file" id="imfile" accept=".xlsx"><button class="sm" id="imgo">엑셀 가져오기</button></div><p class="muted" style="margin-top:8px">휴대폰에서 엑셀이 안 되는 회원은 화면 7의 "텍스트로 보기"로 복사한 글을 카톡·메일로 보냅니다. 그 글을 아래에 붙여 넣으세요.</p><textarea id="imtext" placeholder="회원이 보낸 글 전체를 붙여 넣기(# 헤지펀드 데스크 기록 … 으로 시작)" style="width:100%;height:90px;font-size:12px;font-family:monospace"></textarea><div class="row" style="margin-top:6px"><button class="sm" id="imtextgo">텍스트 가져오기</button></div><p class="muted" id="imstat"></p></div>';
   $('#mrefresh').onclick=renderMembers;
-  $('#imgo').onclick=function(){var label=$('#imlabel').value.trim(),f=$('#imfile').files[0],st=function(t){$('#imstat').textContent=t};if(!label){st('회원 별명을 먼저 적어 주세요.');return}if(!f){st('엑셀 파일을 골라 주세요.');return}
-    importMember(label,f,st).then(function(r){st('완료: '+label+' · '+r.total+'건('+r.cols.join(', ')+'). 표를 다시 읽습니다.');setTimeout(renderMembers,800)}).catch(function(e){st('실패: '+((e&&e.message)||e))})};
+  var st=function(t){$('#imstat').textContent=t},after=function(label){return function(r){st('완료: '+label+' · '+r.total+'건('+r.cols.join(', ')+'). 표를 다시 읽습니다.');setTimeout(renderMembers,800)}},fail=function(e){st('실패: '+((e&&e.message)||e))};
+  $('#imgo').onclick=function(){var label=$('#imlabel').value.trim(),f=$('#imfile').files[0];if(!label){st('회원 별명을 먼저 적어 주세요.');return}if(!f){st('엑셀 파일을 골라 주세요.');return}importMember(label,f,st).then(after(label)).catch(fail)};
+  $('#imtextgo').onclick=function(){var label=$('#imlabel').value.trim(),t=$('#imtext').value;if(!label){st('회원 별명을 먼저 적어 주세요.');return}if(!/##\s*(노트|거래|복기|위반|선언|비중|룰북|루틴)/.test(t)){st('붙여 넣은 글에 "## 노트" 같은 표 제목이 없습니다. 회원이 보낸 글 전체를 붙여 넣어 주세요.');return}importMember(label,null,st,t).then(after(label)).catch(fail)};
   $('#mdl').onclick=function(){var cols=['회원','노트 누적','4주 체크','준수율','위반 건수','감정 거래','노트 없는 매수','올해 거래','복기 이달','복기 누적','통과 5줄','마지막 저장','동의일'];var rows=L.map(function(l){return [name(l),l.notes,l.weeks4,l.comply==null?'':l.comply,l.vio,l.emo,l.noteless,l.trades,l.revM,l.reviews,l.pass,l.updated,l.consent]});saveFile('헤지펀드데스크_회원점검표_'+today()+'.xlsx',xlsx([{name:'점검표',cols:cols,rows:rows}]))};
 }
 /* ---------- 엑셀 가져오기(계정 없는 회원) · zip + 시트 읽기 ---------- */
@@ -506,17 +518,20 @@ function parseXlsx(buf){
     return sheets})
 }
 var IMPORT_MAP={'노트':'notes','거래':'trades','복기':'reviews','위반':'violations','선언':'declarations','비중':'fences','룰북':'rulebooks','루틴':'weekly'};
+function parseCsv(text){var rows=[],row=[],cell='',q=false,i=0;text=text.replace(/^﻿/,'');while(i<text.length){var c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){cell+='"';i+=2;continue}q=false;i++;continue}cell+=c;i++;continue}if(c==='"'){q=true;i++;continue}if(c===','){row.push(cell);cell='';i++;continue}if(c==='\r'){i++;continue}if(c==='\n'){row.push(cell);rows.push(row);row=[];cell='';i++;continue}cell+=c;i++}if(cell!==''||row.length){row.push(cell);rows.push(row)}return rows.filter(function(r){return r.some(function(x){return x!==''})})}
+function recordsFromText(txt){var sheets={},cur=null,buf=[];String(txt||'').split('\n').forEach(function(line){var m=line.match(/^##\s*(.+?)\s*$/);if(m){if(cur)sheets[cur]=parseCsv(buf.join('\n'));cur=m[1];buf=[];return}if(cur&&!/^#\s/.test(line))buf.push(line)});if(cur)sheets[cur]=parseCsv(buf.join('\n'));return recordsFrom(sheets)}
 function recordsFrom(sheets){
   var out={};Object.keys(IMPORT_MAP).forEach(function(sh){var rows=sheets[sh];if(!rows||rows.length<2)return;var head=rows[0].map(function(h){return String(h||'').trim()});var recs=[];
-    rows.slice(1).forEach(function(r){var o={},id=null,any=false;head.forEach(function(k,i){if(!k)return;var v=r[i];if(v===''||v==null)return;if(v==='true')v=true;else if(v==='false')v=false;if(k==='id'){id=String(v);return}if(k==='auto'&&typeof v==='string'){try{v=JSON.parse(v)}catch(e){}}if(k==='lines'&&typeof v==='string')v=v.split(' / ');o[k]=v;any=true});
+    rows.slice(1).forEach(function(r){var o={},id=null,any=false;head.forEach(function(k,i){if(!k)return;var v=r[i];if(v===''||v==null)return;if(v==='true')v=true;else if(v==='false')v=false;else if(typeof v==='string'&&/^-?\d+(\.\d+)?$/.test(v)&&k!=='id')v=Number(v);if(k==='id'){id=String(v);return}if(k==='auto'&&typeof v==='string'){try{v=JSON.parse(v)}catch(e){}}if(k==='lines'&&typeof v==='string')v=v.split(' / ');o[k]=v;any=true});
       if(any)recs.push({id:id||(Date.now().toString(36)+Math.random().toString(36).slice(2,7)),data:o})});
     out[IMPORT_MAP[sh]]=recs});
   return out;
 }
 function memberId(label){var h=5381,s=String(label||'').trim();for(var i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return 'm_'+(h>>>0).toString(36)}
-function importMember(label,file,status){
+function importMember(label,file,status,text){
   var mid=memberId(label);status('읽는 중…');
-  return file.arrayBuffer().then(parseXlsx).then(recordsFrom).then(function(recs){
+  var src=text?Promise.resolve(recordsFromText(text)):file.arrayBuffer().then(parseXlsx).then(recordsFrom);
+  return src.then(function(recs){
     var cols=Object.keys(recs),total=cols.reduce(function(a,c){return a+recs[c].length},0),done=0;if(!total)throw new Error('시트에 기록이 없습니다');
     var queue=[];cols.forEach(function(c){recs[c].forEach(function(r){queue.push(['log/'+mid+'/'+c+'/'+r.id,r.data])})});
     var run=function(){if(!queue.length)return Promise.resolve();var batch=queue.splice(0,8);return Promise.all(batch.map(function(q){return Store.putRaw(q[0],q[1])})).then(function(){done+=batch.length;status('쓰는 중 '+done+'/'+total);return run()})};
@@ -540,7 +555,7 @@ var pending=null;function schedule(){if(pending)return;pending=setTimeout(functi
 renderAll();
 Store.ready.then(function(m){$('#mode').textContent={owner:'기록 저장: 교수 저장소',member:'기록 저장: 회원 저장소',consent:'동의 전 · 저장 안 됨',nouser:'기록 저장: 이 브라우저만(로그인 필요)',local:'기록 저장: 이 브라우저만'}[m]||m;renderConsent();if(m==='owner')addTab('8 회원',8);watched.forEach(function(c){Store.watch(c,schedule)})});
 try{var t=Number(localStorage.getItem('hfdesk:tab'));if(t>=0&&t<8)show(t)}catch(e){}
-window.__hf={parseXlsx:parseXlsx,recordsFrom:recordsFrom,memberId:memberId};
+window.__hf={parseXlsx:parseXlsx,recordsFrom:recordsFrom,recordsFromText:recordsFromText,allText:allText,memberId:memberId};
 })();
 </script>
 <script>
