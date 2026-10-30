@@ -369,7 +369,18 @@ function saveFile(name,data,mime){
   var p=(window.claude&&window.claude.use)?window.claude.use('downloads'):Promise.resolve(null);
   p.then(function(dl){
     if(dl){return dl.save({filename:name,data:data}).then(function(){done(true)}).catch(function(e){done(false,e&&e.code==='declined'?'내려받기를 취소했습니다.':'내려받기 실패: '+((e&&e.message)||e))})}
-    var blob=data instanceof Blob?data:new Blob([data],{type:mime});var u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(u)},2000);done(true);
+    var blob=data instanceof Blob?data:new Blob([data],{type:mime});
+    /* 휴대폰(특히 홈 화면에 설치한 아이폰)은 파일 내려받기가 막히는 경우가 있어 '공유' 창으로 보낸다: 메일·카톡·파일 앱에 저장할 수 있다 */
+    var mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent),file=null;
+    try{file=new File([blob],name,{type:mime||blob.type})}catch(e){}
+    if(mobile&&file&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:name}).then(function(){done(true,'공유 창을 열었습니다. 메일·카톡으로 보내거나 "파일에 저장"을 고르세요: '+name)}).catch(function(e){if(e&&e.name==='AbortError'){done(false,'공유를 취소했습니다.')}else{openTab()}});
+      return;
+    }
+    var u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a)},2000);
+    done(true,'내려받았습니다: '+name+(mobile?' · 열리지 않으면 아래 "새 창에서 열기"를 누르세요.':''));
+    if(mobile){var el=$('#dlmsg');if(el){var b=document.createElement('button');b.className='sm';b.textContent='새 창에서 열기';b.onclick=function(){window.open(u,'_blank')};el.appendChild(document.createTextNode(' '));el.appendChild(b)}}
+    function openTab(){var u2=URL.createObjectURL(blob);var w=window.open(u2,'_blank');done(!!w,w?'새 창에서 열었습니다. 공유 버튼으로 저장하세요.':'팝업이 막혔습니다. 브라우저 설정에서 팝업을 허용해 주세요.')}
   });
 }
 /* 최소 xlsx 작성기: 압축 없는 zip + inlineStr 시트 */
