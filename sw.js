@@ -1,6 +1,6 @@
-/* 설치형 데스크 · 빌드 d3e4c1900f */
-var CACHE='hfdesk-d3e4c1900f';
-var SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./data/fundamentals.json'];
+/* 설치형 데스크 · 빌드 e36ef707d9 */
+var CACHE='hfdesk-e36ef707d9';
+var SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./data/fundamentals.json','./data/prices.json'];
 self.addEventListener('install',function(e){e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(SHELL)}).then(function(){return self.skipWaiting()}))});
 self.addEventListener('activate',function(e){e.waitUntil(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){return k!==CACHE}).map(function(k){return caches.delete(k)}))}).then(function(){return self.clients.claim()}))});
 self.addEventListener('fetch',function(e){
