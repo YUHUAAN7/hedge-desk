@@ -103,6 +103,7 @@ var Store=(function(){
   function touch(){if(memberDoc)memberDoc.update({updated:today()}).catch(function(){})}
   function set(c,id,data){
     data=JSON.parse(JSON.stringify(data));data.ts=new Date().toISOString();
+    if(c!=='settings'&&typeof stamp==='function'){try{data.mkt=stamp()}catch(e){}}
     if(root){if(!consent){alert('먼저 화면 위의 수집 동의가 필요합니다.');return Promise.reject(new Error('no-consent'))}return col(c).doc(id).set(data).then(touch)}
     cache[c]=cache[c]||lread(c);cache[c][id]=data;lwrite(c,cache[c]);emit(c);return Promise.resolve()
   }
@@ -147,6 +148,13 @@ var TYPES=['저성장주','우량주','고성장주','경기순환주','회생�
 var pf=D.pf, W=D.wall.values, M=D.market;
 var cashW=(pf.sleeves.find(function(s){return s.key==='cash'})||{w:0}).w, riskW=100-cashW, maxW=Math.max.apply(null,pf.sleeves.map(function(s){return s.w}));
 var lastM=pf.months[pf.months.length-1], ytd=pf.totals.etf, beta=pf.risk.etf.beta;
+/* ---------- 시장 상황 도장: 기록을 저장하는 순간 그 주의 시장 상태를 함께 남긴다(행동 자료용, 자료 기준일 포함) ---------- */
+function stamp(){
+  var f=fence(),cr=D.crisis||{},rows=cr.rows||{},v=function(k){return rows[k]?rows[k][0]:null};
+  return {asof:D.asof,spx200:W.ma200_spx,kospi200:W.ma200_kospi,vix:v('VIX(공포지수)'),hy:v('미국 하이일드 스프레드'),us10y:v('미국 10년물'),usdkrw:v('원/달러'),
+    kospi:M.kospi?M.kospi.now:null,kospi_ytd:M.kospi?M.kospi.ytd:null,kospi_from_high:M.kospi?M.kospi.from_high:null,spx_ytd:M.spx?M.spx.ytd:null,
+    buffett:W.buffett,nyfed:W.nyfed,crisis:cr.score,crisis_level:cr.level,fence:f.pos,q1:f.q1,q2:f.q2,q3:f.q3};
+}
 /* ---------- 울타리 위치 제안(거시 13분 세 질문) ---------- */
 function fence(){
   var q1=(W.nyfed>=30||W.sahm>=0.5)?'주의':'정상', q2=(W.ig>=2||D.crisis.rows['미국 하이일드 스프레드'][0]>=5)?'주의':'정상', q3=(W.buffett>=200||W.ma200_spx>=15)?'비쌈':'보통';
@@ -250,7 +258,7 @@ function renderResearch(){
     f.onsubmit=function(e){e.preventDefault();var fd=new FormData(e.target),o={};fd.forEach(function(v,k){var txt=['name','date','type','debt','insider','story','wrong','sell','auto_ticker','auto_fetched'].indexOf(k)>=0;o[k]=(v===''?null:(txt?v:Number(v)))});o.sealed=new Date().toISOString();if(o.auto_ticker){o.auto={ticker:o.auto_ticker,fetched:o.auto_fetched,source:'Yahoo Finance quoteSummary'}}delete o.auto_ticker;delete o.auto_fetched;Store.add('notes',o).then(function(){e.target.reset();AUTO=null;f.querySelectorAll('.auto').forEach(function(el){el.classList.remove('auto')});FIELDS.forEach(function(x){badge(x.k,'')});upd();fillDict();alert('봉인됐습니다. 1년 뒤 결과만 적을 수 있습니다.')})};
   }
   $('#notelist').innerHTML='<h3 style="margin-top:16px">봉인된 노트 '+notes.length+'장</h3>'
-  +(notes.length?notes.map(function(n){return '<div class="note"><b>'+esc(n.name)+'</b> · '+esc(n.type)+' · '+esc(n.date)+' · 7기준 '+esc(n.g7==null?'–':n.g7)+'/7 · 지배구조 '+esc(n.gov==null?'–':n.gov)+'/8 · PEG '+esc(n.peg==null?'–':n.peg)+' · 역산 성장 '+esc(n.g_imp==null?'–':n.g_imp+'%')+(n.auto?' · <span class="tag ok">자동 '+esc(n.auto.fetched||'')+'</span>':'')+'<br><span class="muted">스토리</span> '+esc(n.story)+'<br><span class="muted">틀리면</span> '+esc(n.wrong)+'<br><span class="muted">매도</span> '+esc(n.sell)+'<br><span class="muted">1년 뒤</span> '+(n.verdict?'<b>'+esc(n.verdict)+'</b> '+esc(n.verdict_note||''):'<button class="sm" data-verdict="'+n.id+'">결과 적기</button>')+'</div>'}).join(''):'<p class="muted">아직 없습니다. 보유 종목 하나부터 적어 보십시오. 1단계에서 이름을 넣고 자동 채우기, 3단계 세 칸, 봉인. 30분이면 됩니다.</p>');
+  +(notes.length?notes.map(function(n){return '<div class="note"><b>'+esc(n.name)+'</b> · '+esc(n.type)+' · '+esc(n.date)+' · 7기준 '+esc(n.g7==null?'–':n.g7)+'/7 · 지배구조 '+esc(n.gov==null?'–':n.gov)+'/8 · PEG '+esc(n.peg==null?'–':n.peg)+' · 역산 성장 '+esc(n.g_imp==null?'–':n.g_imp+'%')+(n.auto?' · <span class="tag ok">자동 '+esc(n.auto.fetched||'')+'</span>':'')+(n.mkt?'<br><span class="muted">그날 시장</span> 코스피 200일선 '+pct(n.mkt.kospi200)+' · S&P '+pct(n.mkt.spx200)+' · VIX '+esc(n.mkt.vix==null?'–':n.mkt.vix)+' · 울타리 '+esc(n.mkt.fence||'')+' · 위기 '+esc(n.mkt.crisis==null?'–':n.mkt.crisis+'점')+' (자료 '+esc(n.mkt.asof||'')+')':'')+'<br><span class="muted">스토리</span> '+esc(n.story)+'<br><span class="muted">틀리면</span> '+esc(n.wrong)+'<br><span class="muted">매도</span> '+esc(n.sell)+'<br><span class="muted">1년 뒤</span> '+(n.verdict?'<b>'+esc(n.verdict)+'</b> '+esc(n.verdict_note||''):'<button class="sm" data-verdict="'+n.id+'">결과 적기</button>')+'</div>'}).join(''):'<p class="muted">아직 없습니다. 보유 종목 하나부터 적어 보십시오. 1단계에서 이름을 넣고 자동 채우기, 3단계 세 칸, 봉인. 30분이면 됩니다.</p>');
   $('#notelist').querySelectorAll('[data-verdict]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-verdict'),n=Store.get('notes',id);var v=prompt('1년 뒤 결과: 맞음 / 틀림 / 보류');if(!v)return;var note=prompt('한 줄 복기')||'';var o=Object.assign({},n);delete o.id;o.verdict=v;o.verdict_note=note;o.verdict_date=today();Store.set('notes',id,o)}});
 }
 /* ---------- 2 포트폴리오 ---------- */
@@ -531,7 +539,7 @@ function parseCsv(text){var rows=[],row=[],cell='',q=false,i=0;text=text.replace
 function recordsFromText(txt){var sheets={},cur=null,buf=[];String(txt||'').split('\n').forEach(function(line){var m=line.match(/^##\s*(.+?)\s*$/);if(m){if(cur)sheets[cur]=parseCsv(buf.join('\n'));cur=m[1];buf=[];return}if(cur&&!/^#\s/.test(line))buf.push(line)});if(cur)sheets[cur]=parseCsv(buf.join('\n'));return recordsFrom(sheets)}
 function recordsFrom(sheets){
   var out={};Object.keys(IMPORT_MAP).forEach(function(sh){var rows=sheets[sh];if(!rows||rows.length<2)return;var head=rows[0].map(function(h){return String(h||'').trim()});var recs=[];
-    rows.slice(1).forEach(function(r){var o={},id=null,any=false;head.forEach(function(k,i){if(!k)return;var v=r[i];if(v===''||v==null)return;if(v==='true')v=true;else if(v==='false')v=false;else if(typeof v==='string'&&/^-?\d+(\.\d+)?$/.test(v)&&k!=='id')v=Number(v);if(k==='id'){id=String(v);return}if(k==='auto'&&typeof v==='string'){try{v=JSON.parse(v)}catch(e){}}if(k==='lines'&&typeof v==='string')v=v.split(' / ');o[k]=v;any=true});
+    rows.slice(1).forEach(function(r){var o={},id=null,any=false;head.forEach(function(k,i){if(!k)return;var v=r[i];if(v===''||v==null)return;if(v==='true')v=true;else if(v==='false')v=false;else if(typeof v==='string'&&/^-?\d+(\.\d+)?$/.test(v)&&k!=='id')v=Number(v);if(k==='id'){id=String(v);return}if((k==='auto'||k==='mkt')&&typeof v==='string'){try{v=JSON.parse(v)}catch(e){}}if(k==='lines'&&typeof v==='string')v=v.split(' / ');o[k]=v;any=true});
       if(any)recs.push({id:id||(Date.now().toString(36)+Math.random().toString(36).slice(2,7)),data:o})});
     out[IMPORT_MAP[sh]]=recs});
   return out;
