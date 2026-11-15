@@ -1,5 +1,5 @@
-/* 설치형 데스크 · 빌드 36a5579459 */
-var CACHE='hfdesk-36a5579459';
+/* 설치형 데스크 · 빌드 a75af48427 */
+var CACHE='hfdesk-a75af48427';
 var SHELL=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./data/fundamentals.json','./data/prices.json'];
 self.addEventListener('install',function(e){e.waitUntil(caches.open(CACHE).then(function(c){return c.addAll(SHELL)}).then(function(){return self.skipWaiting()}))});
 self.addEventListener('activate',function(e){e.waitUntil(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){return k!==CACHE}).map(function(k){return caches.delete(k)}))}).then(function(){return self.clients.claim()}))});
